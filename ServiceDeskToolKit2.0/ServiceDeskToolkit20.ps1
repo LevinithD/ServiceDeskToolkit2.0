@@ -67,7 +67,10 @@ Function Start-ServicDeskToolkit
     $txt_ADUser.Location = New-Object System.Drawing.Point(150,10)
     $txt_ADUser.Height = 10
     $txt_ADUser.Width = 300
-        
+
+    # Zorgt ervoor dat bij het indrukken van enter er ook gezocht wordt
+    $txt_ADUser.add_keydown({if ($_.Keycode -eq "Enter") {Get-UserInfo -Username $txt_ADUser.Text}})
+
     # ADUser knop om de gebruiker op te zoeken
     $btn_ADUser = New-Object System.Windows.Forms.Button
     $btn_ADUser.Location = New-Object System.Drawing.Point(600, 10)
@@ -113,6 +116,10 @@ Function Start-ServicDeskToolkit
     $txt_ADComputerName.Location = New-Object System.Drawing.Point(150,10)
     $txt_ADComputerName.Height = 10
     $txt_ADComputerName.Width = 300
+
+    # Zorgt ervoor dat bij het indrukken van enter er ook gezocht wordt
+    $txt_ADComputer.add_keydown({if ($_.Keycode -eq "Enter") {Get-ComputerInfo -Computername $txt_ADComputer.Text}})
+
 
     # ADComputer knop om de computer op te zoeken
     $btn_ADComputer = New-Object System.Windows.Forms.Button
@@ -164,6 +171,9 @@ Function Start-ServicDeskToolkit
     $txt_ADPrinter.Location = New-Object System.Drawing.Point(150,10)
     $txt_ADPrinter.Height = 10
     $txt_ADPrinter.Width = 300
+    
+    # Zorgt ervoor dat bij het indrukken van enter er ook gezocht wordt
+    $txt_ADPrinter.add_keydown({if ($_.Keycode -eq "Enter") {Get-PrinterInfo -PrinterName $txt_ADPrinter.Text}})
 
     # ADPrinterName knop om de printer op te zoeken
     $btn_ADPrinter = New-Object System.Windows.Forms.Button
