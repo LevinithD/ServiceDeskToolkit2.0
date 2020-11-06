@@ -1,7 +1,39 @@
-﻿Add-Type -AssemblyName System.Windows.Forms
+<#
+.SYNOPSIS
+
+.DESCRIPTION
+
+.PARAMETER
+
+.EXAMPLE
+
+.NOTES
+
+.LINK
+#>
+
+#  Assemblies toevoegen. Dit geeft dit programma de mogelijkheid om gebruik te maken van functionaliteiten die ingebouwd zitten in het OS.
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-Function Start-ServicDeskToolkit
+Function Start-ServiceDeskToolkit
+{
+
+Auto-Update
+
+Create-Form -UserName $UserName -ComputerName $ComputerName -PrinterName $PrinterName
+}
+
+Function Auto-Update
+{
+if ($(Get-Item C:\temp\ServiceDeskToolkit20.ps1).CreationTimeUtc -gt $(Get-Item $PSCommandPath).CreationTimeUtc) {
+    Copy-Item C:\temp\ServiceDeskToolkit20.ps1 $PSCommandPath
+    $(Get-Item $PSCommandPath).CreationTimeUtc = [DateTime]::UtcNow
+    &$PSCommandPath
+    exit
+}}
+
+Function Create-Form
 {
 
     [cmdletbinding()]
@@ -67,16 +99,18 @@ Function Start-ServicDeskToolkit
     $txt_ADUser.Location = New-Object System.Drawing.Point(150,10)
     $txt_ADUser.Height = 10
     $txt_ADUser.Width = 300
-
+    
     # Zorgt ervoor dat bij het indrukken van enter er ook gezocht wordt
     $txt_ADUser.add_keydown({if ($_.Keycode -eq "Enter") {Get-UserInfo -Username $txt_ADUser.Text}})
-
+        
     # ADUser knop om de gebruiker op te zoeken
     $btn_ADUser = New-Object System.Windows.Forms.Button
     $btn_ADUser.Location = New-Object System.Drawing.Point(600, 10)
     $btn_ADUser.text = "Search"
     $btn_ADUser.Height = 30
     $btn_ADUser.Width = 100
+    
+    # Zoek de bijbehorende gegevens op na indrukken van de knop
     $btn_ADUser.add_click({Get-UserInfo -Username $txt_ADUser.Text})   
 
     <# 
@@ -112,14 +146,13 @@ Function Start-ServicDeskToolkit
     $lbl_ADComputer.Text = "Computernaam"
         
     # ADComputer Textbox voor de op te zoeken computer informatie
-    $txt_ADComputerName = New-Object System.Windows.Forms.TextBox
-    $txt_ADComputerName.Location = New-Object System.Drawing.Point(150,10)
-    $txt_ADComputerName.Height = 10
-    $txt_ADComputerName.Width = 300
-
+    $txt_ADComputer = New-Object System.Windows.Forms.TextBox
+    $txt_ADComputer.Location = New-Object System.Drawing.Point(150,10)
+    $txt_ADComputer.Height = 10
+    $txt_ADComputer.Width = 300
+    
     # Zorgt ervoor dat bij het indrukken van enter er ook gezocht wordt
     $txt_ADComputer.add_keydown({if ($_.Keycode -eq "Enter") {Get-ComputerInfo -Computername $txt_ADComputer.Text}})
-
 
     # ADComputer knop om de computer op te zoeken
     $btn_ADComputer = New-Object System.Windows.Forms.Button
@@ -128,6 +161,7 @@ Function Start-ServicDeskToolkit
     $btn_ADComputer.Height = 30
     $btn_ADComputer.Width = 100
 
+    # Zoek de bijbehorende gegevens op na indrukken van de knop
     $btn_ADComputer.add_click({Get-ComputerInfo -Computername $txt_ADComputerName.Text})   
     
     <# 
@@ -181,8 +215,10 @@ Function Start-ServicDeskToolkit
     $btn_ADPrinter.text = "Search"
     $btn_ADPrinter.Height = 30
     $btn_ADPrinter.Width = 100
-
+    
+    # Zoek de bijbehorende gegevens op na indrukken van de knop
     $btn_ADPrinter.add_click({Get-PrinterInfo -PrinterName $txt_ADPrinter.Text})   
+    
     <# 
     Om de een of andere reden moet de informatie eerst worden opgezocht voordat de Datagridview wordt aangelegd. Er moet gekeken worden of hier een refresh mogelijkheid bestaat om de 
     Datagridview te verversen met nieuwe data. Als dit kan (en we weten hoe), dan maakt het niet meer uit wanneer de data wordt ingeladen
@@ -266,15 +302,21 @@ Function Get-ComputerInfo
     [CmdletBinding()]
     Param($Computername)
 
-     # Zoekt de informatie op van de gebruiker
+    # Controleert of de computernaam begint met PW -> standaard voor de Tweede Kamer. Zo niet, voegt PW toe aan de $Computername
+    If (!$Computername.StartsWith("PW"))
+        {
+            $Computername = "PW" + $Computername
+        }
+
+     # Zoekt de informatie op van de computer
     <# 
     Dit gedeelte moet verder worden uitgewerkt, en wel als volgt (als alles meezit). het liefst heb ik dit gedeelte in een apart bestand waarbij de properties op basis van de keuze in 
     C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolkit2.0\HelperFiles\Setting_Files\ADComputerSettings.txt worden ingeladen via 
     C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolkit2.0\HelperFiles\Function_Files\Setting_Files\Get-ADComputerSettings.ps1 en vervolgens getoond in de DataGridView.
 
-    De reden dat hier een eerst een tekstbestand wordt aangelegd en deze vervolgens weer wordt ingelezen heeft te maken met dat Get-ADUser objecten oplevert en deze lijken niet direct te 
+    De reden dat hier een eerst een tekstbestand wordt aangelegd en deze vervolgens weer wordt ingelezen heeft te maken met dat Get-ADComputer objecten oplevert en deze lijken niet direct te 
     splitsen te zijn in individuele entiteiten. Door te exporteren naar een tekst bestand en deze vervolgens te importeren is dit wel het geval. Er zal hier sowieso nog een tweede kolom bij 
-    moeten komen en de waarden daarover verdeeld. Dit kan door de array $UserInfo te splitsen over twee kolommen of door hier een 2-dimensionale array van te maken. Dit moet allemaal nog 
+    moeten komen en de waarden daarover verdeeld. Dit kan door de array $ComputerInfo te splitsen over twee kolommen of door hier een 2-dimensionale array van te maken. Dit moet allemaal nog 
     uitgezocht worden. Maar dit werkt in ieder geval!
     #>
     $ADComputer = Get-ADComputer $ComputerName -Properties * | Out-File "C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolKit2.0\HelperFiles\Temp_Files\ComputerInfo.txt"
@@ -293,15 +335,21 @@ Function Get-PrinterInfo
     [CmdletBinding()]
     Param($PrinterName)
 
+    # Controleert 
+    If (!$PrinterName.StartsWith("PRINT_"))
+        {
+            $PrinterName = "PRINT_" + $PrinterName
+        }
+
     # Zoekt de informatie op van de printer
     <# 
     Dit gedeelte moet verder worden uitgewerkt, en wel als volgt (als alles meezit). het liefst heb ik dit gedeelte in een apart bestand waarbij de properties op basis van de keuze in 
     C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolkit2.0\HelperFiles\Setting_Files\ADGroupSettings.txt worden ingeladen via 
     C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolkit2.0\HelperFiles\Function_Files\Setting_Files\Get-ADGroupSettings.ps1 en vervolgens getoond in de DataGridView.
 
-    De reden dat hier een eerst een tekstbestand wordt aangelegd en deze vervolgens weer wordt ingelezen heeft te maken met dat Get-ADUser objecten oplevert en deze lijken niet direct te 
+    De reden dat hier een eerst een tekstbestand wordt aangelegd en deze vervolgens weer wordt ingelezen heeft te maken met dat Get-ADGroup objecten oplevert en deze lijken niet direct te 
     splitsen te zijn in individuele entiteiten. Door te exporteren naar een tekst bestand en deze vervolgens te importeren is dit wel het geval. Er zal hier sowieso nog een tweede kolom bij 
-    moeten komen en de waarden daarover verdeeld. Dit kan door de array $UserInfo te splitsen over twee kolommen of door hier een 2-dimensionale array van te maken. Dit moet allemaal nog 
+    moeten komen en de waarden daarover verdeeld. Dit kan door de array $PrintInfo te splitsen over twee kolommen of door hier een 2-dimensionale array van te maken. Dit moet allemaal nog 
     uitgezocht worden. Maar dit werkt in ieder geval!
     #>
     $ADPrinter = Get-ADGroup $PrinterName -Properties * | Out-File "C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolKit2.0\HelperFiles\Temp_Files\PrinterInfo.txt"
@@ -329,4 +377,4 @@ If(-not ($PrinterName.Contains("PRINT_")))
     $PrinterName = "PRINT_" + $PrinterName
 }
 
-Start-ServicDeskToolkit -UserName $UserName -ComputerName $ComputerName -PrinterName $PrinterName
+Start-ServiceDeskToolkit 
