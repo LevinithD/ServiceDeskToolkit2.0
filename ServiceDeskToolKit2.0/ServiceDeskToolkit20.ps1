@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 
 .DESCRIPTION
@@ -26,12 +26,25 @@ Create-Form -UserName $UserName -ComputerName $ComputerName -PrinterName $Printe
 
 Function Auto-Update
 {
-if ($(Get-Item C:\temp\ServiceDeskToolkit20.ps1).CreationTimeUtc -gt $(Get-Item $PSCommandPath).CreationTimeUtc) {
-    Copy-Item C:\temp\ServiceDeskToolkit20.ps1 $PSCommandPath
-    $(Get-Item $PSCommandPath).CreationTimeUtc = [DateTime]::UtcNow
-    &$PSCommandPath
-    exit
-}}
+<# Het dollar teken in deze expressie geeft aan dat hier een om een sub-exrpessie betreft -> dat wil zeggen een functie in een functie.
+Get-Item stelt je in staat om een bestand/map ergens vandaan te halen en deze te manipuleren. In dit geval wordt 
+
+#>
+if ($(Get-Item C:\temp\ServiceDeskToolkit20.ps1).CreationTimeUtc -gt $(Get-Item $PSCommandPath).CreationTimeUtc) 
+    {
+        # Copy-Item kopieert de nieuwe versie van de ServiceDeskToolkit naar de huidige locatie van je bestand. 
+        Copy-Item C:\temp\ServiceDeskToolkit20.ps1 $PSCommandPath
+        
+        # Past de creatie-tijd van het bestand naar nu
+        $(Get-Item $PSCommandPath).CreationTimeUtc = [DateTime]::UtcNow
+        
+        # Open het bestand
+        &$PSCommandPath
+        
+        # Stap uit de script
+        exit
+    }
+}
 
 Function Create-Form
 {
@@ -50,6 +63,34 @@ Function Create-Form
     $frm_Toolkit.Height = 920
     $frm_Toolkit.Width = 900
 
+    ####################################################################
+    
+    # Maak het rechtermuisklik-menu voor het Tabblad ADUSer
+    $contextMenuStrip_ADUser = New-Object System.Windows.Forms.ContextMenuStrip
+
+    # Mogelijkheid om accounts te vergrendelen/ontgrendelen
+    [System.Windows.Forms.ToolStripItem]$toolStripItemUnlockAccount = New-Object System.Windows.Forms.ToolStripMenuItem
+    $toolStripItemUnlockAccount.Text = "Unlock Account"
+    $toolStripItemUnlockAccount.add_Click({Unlock-Account -username $txt_ADUser.Text})
+    
+    [System.Windows.Forms.ToolStripItem]$toolStripItemResetPassword = New-Object System.Windows.Forms.ToolStripMenuItem
+    $toolStripItemResetPassword.Text = "Reset Password"
+    $toolStripItemResetPassword.add_Click({Set-Password -username $txt_ADUser.Text})
+
+    [System.Windows.Forms.ToolStripItem]$toolStripItemEnableAccount = New-Object System.Windows.Forms.ToolStripMenuItem
+    $toolStripItemEnableAccount.Text = "Enable Account"
+    $toolStripItemEnableAccount.add_Click({EnableDisable-Account -username $txt_ADUser.Text -Enable 1})
+
+    [System.Windows.Forms.ToolStripItem]$toolStripItemHomeDrive = New-Object System.Windows.Forms.ToolStripMenuItem
+    $toolStripItemHomeDrive.Text = "Open HomeDrive"
+    $toolStripItemHomeDrive.add_Click({Open-Homedrive -username $txt_ADUser.Text})
+
+    [System.Windows.Forms.ToolStripItem]$toolStripItemCopy = New-Object System.Windows.Forms.ToolStripMenuItem
+    $toolStripItemCopy.Text = "Copy"
+    $toolStripItemCopy.add_Click({Copy-Screen})
+
+    $contextMenuStrip_ADUser.Items.AddRange(@($toolStripItemUnlockAccount, $toolStripItemResetPassword, $toolStripItemEnableAccount, $toolStripItemHomeDrive, $toolStripItemCopy))
+    
     ####################################################################
 
     # Maak de menubar
@@ -87,6 +128,7 @@ Function Create-Form
     # Maak de tabpagina voor Gebruikers
     $TabPage_ADUser = New-Object System.Windows.Forms.TabPage
     $TabPage_ADUser.Text = "Gebruiker info"
+    $TabPage_ADUser.ContextMenuStrip = $contextMenuStrip_ADUser
     
     # Maken van controls voor de tabpagina
     # ADUser Label
@@ -124,15 +166,42 @@ Function Create-Form
     $dgv_ADUser.Height = 750
     $dgv_ADUser.Width = 450
     $dgv_ADUser.ColumnHeadersVisible = $true
+    $dgv_ADUser.AutoSizeColumnsMode = "AllCells"
     $dgv_ADUser.DataSource = $ADUserList
+    
+    $dgv_ADUser.add_MouseDown(
+    {
+        $sender = $args[0]
+        [System.Windows.Forms.MouseEventArgs]$e= $args[1]
+
+        if ($e.Button -eq  [System.Windows.Forms.MouseButtons]::Right)
+        {
+            [System.Windows.Forms.DataGridView+HitTestInfo] $hit = $DataGrid1.HitTest($e.X, $e.Y);
+            if ($hit.Type -eq [System.Windows.Forms.DataGridViewHitTestType]::Cell)
+            {
+                $contextMenuStrip_Main.Show() 
+            }
+        }
+    })
+    
+    # Datagridview voor sessies opgezochte gebruiker
+    $dgv_ADUserSession = New-Object System.Windows.Forms.DataGridView
+    $dgv_ADUserSession.Location = New-Object System.Drawing.Point(500,250)
+    $dgv_ADUserSession.Height = 250
+    $dgv_ADUserSession.Width = 350
+    $dgv_ADUserSession.ColumnHeadersVisible = $true
+    $dgv_ADUserSession.AutoSizeColumnsMode = "AllCells"
+    $dgv_ADUserSession.DataSource = $ADUserSession
 
     # Voeg de verschillende controls toe aan de tab-pagina
     $TabPage_ADUser.controls.AddRange(@($lbl_ADUser, 
                                         $txt_ADUser, 
                                         $btn_ADUser,
-                                        $dgv_ADUser
+                                        $dgv_ADUser,
+                                        $dgv_ADUserSession,
+                                        $contextMenuStrip_Main
                                      ))
-
+   
     ####################################################################
     
     # Maak Tabpagina for Active Directory Computers
@@ -152,7 +221,7 @@ Function Create-Form
     $txt_ADComputer.Width = 300
     
     # Zorgt ervoor dat bij het indrukken van enter er ook gezocht wordt
-    $txt_ADComputer.add_keydown({if ($_.Keycode -eq "Enter") {Get-ComputerInfo -Computername $txt_ADComputer.Text}})
+    $txt_ADComputer.add_keydown({if ($_.Keycode -eq "Enter") {Get-ComputerInfo -Computername $txt_ADComputer.Text; Get-IP -Computername $txt_ADComputer.Text}})
 
     # ADComputer knop om de computer op te zoeken
     $btn_ADComputer = New-Object System.Windows.Forms.Button
@@ -162,8 +231,17 @@ Function Create-Form
     $btn_ADComputer.Width = 100
 
     # Zoek de bijbehorende gegevens op na indrukken van de knop
-    $btn_ADComputer.add_click({Get-ComputerInfo -Computername $txt_ADComputerName.Text})   
+    $btn_ADComputer.add_click({Get-ComputerInfo -Computername $txt_ADComputer.Text ; Get-IP -Computername $txt_ADComputer.Text})   
     
+    # Label om te controleren of de computer online is
+    $lbl_ADComputerOnline = New-Object System.Windows.Forms.Label
+    $lbl_ADComputerOnline.Location = New-Object System.Drawing.Point(470, 10)
+    $lbl_ADComputerOnline.Height = 20
+    $lbl_ADComputerOnline.Width = 40
+    $lbl_ADComputerOnline.BackColor = "Transparent"
+    $lbl_ADComputerOnline.Text = ""
+    $lbl_ADComputerOnline.TextAlign= "MiddleCenter"
+
     <# 
     Om de een of andere reden moet de informatie eerst worden opgezocht voordat de Datagridview wordt aangelegd. Er moet gekeken worden of hier een refresh mogelijkheid bestaat om de 
     Datagridview te verversen met nieuwe data. Als dit kan (en we weten hoe), dan maakt het niet meer uit wanneer de data wordt ingeladen
@@ -175,15 +253,19 @@ Function Create-Form
     $dgv_ADComputer.Height = 750
     $dgv_ADComputer.Width = 450
     $dgv_ADComputer.ColumnHeadersVisible = $true
+    $dgv_ADComputer.AutoSizeColumnsMode = "AllCells"
     $dgv_ADComputer.DataSource = $ADComputerList
+
+    # Voegt een tekening toe om aan te geven dat de computer online is (groen) of niet (rood)
+    $TabPageGraphics = $TabPage_ADComputer.CreateGraphics()
 
     # Voeg de controls toe aan de tabpagina.
     $TabPage_ADComputer.controls.AddRange(@(
                                             $lbl_ADComputer, 
-                                            $txt_ADComputerName, 
+                                            $txt_ADComputer, 
                                             $btn_ADComputer, 
                                             $dgv_ADComputer,
-                                            $chk_ADComputerPing
+                                            $lbl_ADComputerOnline
                                          ))
 
     ####################################################################
@@ -207,7 +289,7 @@ Function Create-Form
     $txt_ADPrinter.Width = 300
     
     # Zorgt ervoor dat bij het indrukken van enter er ook gezocht wordt
-    $txt_ADPrinter.add_keydown({if ($_.Keycode -eq "Enter") {Get-PrinterInfo -PrinterName $txt_ADPrinter.Text}})
+    $txt_ADPrinter.add_keydown({if ($_.Keycode -eq "Enter") {Get-PrinterInfo -PrinterName $txt_ADPrinter.Text;Get-IP -Computername $txt_ADPrinter.Text}})
 
     # ADPrinterName knop om de printer op te zoeken
     $btn_ADPrinter = New-Object System.Windows.Forms.Button
@@ -217,8 +299,16 @@ Function Create-Form
     $btn_ADPrinter.Width = 100
     
     # Zoek de bijbehorende gegevens op na indrukken van de knop
-    $btn_ADPrinter.add_click({Get-PrinterInfo -PrinterName $txt_ADPrinter.Text})   
+    $btn_ADPrinter.add_click({Get-PrinterInfo -PrinterName $txt_ADPrinter.Text;})   
     
+    # Label om te controleren of de computer online is
+    $lbl_ADPrinterOnline = New-Object System.Windows.Forms.Label
+    $lbl_ADPrinterOnline.Location = New-Object System.Drawing.Point(470, 10)
+    $lbl_ADPrinterOnline.Height = 20
+    $lbl_ADPrinterOnline.Width = 20
+    $lbl_ADPrinterOnline.BackColor = "Transparent"
+    $lbl_ADPrinterOnline.Text = ""
+
     <# 
     Om de een of andere reden moet de informatie eerst worden opgezocht voordat de Datagridview wordt aangelegd. Er moet gekeken worden of hier een refresh mogelijkheid bestaat om de 
     Datagridview te verversen met nieuwe data. Als dit kan (en we weten hoe), dan maakt het niet meer uit wanneer de data wordt ingeladen
@@ -230,13 +320,15 @@ Function Create-Form
     $dgv_ADPrinter.Height = 750
     $dgv_ADPrinter.Width = 450
     $dgv_ADPrinter.ColumnHeadersVisible = $true
+    $dgv_ADPrinter.AutoSizeColumnsMode = "AllCells"
     $dgv_ADPrinter.DataSource = $ADPrinterList
-        
+
     # Voeg de controls toe aan de tabpagina.
     $TabPage_ADPrinter.Controls.AddRange(@($lbl_ADPrinter, 
-                                           $txt_ADPrinter
-                                           $btn_ADPrinter
-                                           $dgv_ADPrinter
+                                           $txt_ADPrinter,
+                                           $btn_ADPrinter,
+                                           $dgv_ADPrinter,
+                                           $lbl_ADPrinterOnline
                                         ))
 
     ####################################################################
@@ -274,7 +366,11 @@ Function Create-Form
 Function Get-UserInfo
 {
     [CmdletBinding()]
-    Param($Username)
+    Param
+    (
+        [Parameter(Mandatory)]
+        [String]$Username
+    )
     
     <# 
     Dit gedeelte moet verder worden uitgewerkt, en wel als volgt (als alles meezit). het liefst heb ik dit gedeelte in een apart bestand waarbij de properties op basis van de keuze in 
@@ -286,11 +382,33 @@ Function Get-UserInfo
     moeten komen en de waarden daarover verdeeld. Dit kan door de array $UserInfo te splitsen over twee kolommen of door hier een 2-dimensionale array van te maken. Dit moet allemaal nog 
     uitgezocht worden. Maar dit werkt in ieder geval!
     #>
-    $ADUser = Get-ADUser $UserName  -Properties * | Out-File "C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolKit2.0\HelperFiles\Temp_Files\UserInfo.txt"
+
+    # Onderstaande is een alternatieve manier om de DataGridView te voorzien van data, maar op dit moment werkt het nog niet.
+    <#$dgv_ADUser.ColumnCount = 2
+    $dgv_ADUSer.ColumnHeadersVisible = $true
+    $dgv_ADUser.Columns[0].Name = "Property"
+    $dgv_ADUser.Columns[1].Name = "Value"
+    $dgv_ADUser.Columns[0].Width = 240
+
+    Get-ADUser $Username -Properties * | foreach
+    {
+        $dgv_ADUser.rows.Add($_.samAccountName)
+    }#>
+
+    $ADUser = Get-ADUser -Filter "SamAccountName -like '*$UserName*'" -Properties * | Out-File "C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolKit2.0\HelperFiles\Temp_Files\UserInfo.txt"
     $UserInfo = Get-Content "C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolKit2.0\HelperFiles\Temp_Files\UserInfo.txt" | ForEach-Object { New-Object PSObject -Property @{"Property" = $_}}
     $ADUserList = New-Object System.Collections.ArrayList
     $ADUserList.AddRange($UserInfo)
-    
+
+    # Onderstaande is bedoeld om specifieke eigenschappen een andere achtergrond kleur te geven zodra de waarde hierin aangepast is. Dit dient nog verder uitgewerkt te worden.
+    <#Foreach ($Row in $dgv_ADUser.Rows)
+    {
+        if($Row.Cells[0].Value -eq "PasswordExpired")
+        {
+            $Row.DefaultCellStyle.BackColor = "Red"
+        }
+    }#>
+   
     $dgv_ADUser.DataBindings.DefaultDataSourceUpdateMode = 0
     $dgv_ADUser.DataSource = $null
     $dgv_ADUser.DataSource = $ADUserList
@@ -300,15 +418,20 @@ Function Get-UserInfo
 Function Get-ComputerInfo
 {
     [CmdletBinding()]
-    Param($Computername)
+    Param
+    (
+        [Parameter(Mandatory)]
+        [string]$Computername
+    )
 
-    # Controleert of de computernaam begint met PW -> standaard voor de Tweede Kamer. Zo niet, voegt PW toe aan de $Computername
-    If (!$Computername.StartsWith("PW"))
+     # Controleert of de computernaam begint met PW -> standaard voor de Tweede Kamer. Zo niet, voegt PW toe aan de $Computername
+    If (!$Computername.startswith("PW"))
         {
             $Computername = "PW" + $Computername
         }
 
-     # Zoekt de informatie op van de computer
+
+    # Zoekt de informatie op van de computer
     <# 
     Dit gedeelte moet verder worden uitgewerkt, en wel als volgt (als alles meezit). het liefst heb ik dit gedeelte in een apart bestand waarbij de properties op basis van de keuze in 
     C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolkit2.0\HelperFiles\Setting_Files\ADComputerSettings.txt worden ingeladen via 
@@ -333,9 +456,13 @@ Function Get-ComputerInfo
 Function Get-PrinterInfo
 {
     [CmdletBinding()]
-    Param($PrinterName)
+    Param
+    (
+        [Parameter(Mandatory)]
+        [string]$PrinterName
+    )
 
-    # Controleert 
+    # Controleert of de printernaam begint met PRINT_, zo nee, zet dit ervoor. Namen in ADGroup beginnen met PRINT en dit is niet altijd duidelijk voor de gebruiker van ServiceDesk Toolkit 2.0
     If (!$PrinterName.StartsWith("PRINT_"))
         {
             $PrinterName = "PRINT_" + $PrinterName
@@ -363,18 +490,131 @@ Function Get-PrinterInfo
     $dgv_ADPrinter.Refresh()
 }
 
-$UserName = "BOOY3105"
-$ComputerName = "PW3905"
-$PrinterName = "PRINT_NPX-ZW001"
+Function Get-IP
+{
+    [CmdletBinding()]
+    Param
+    (
+        $Computername
+    )
 
-If(-not ($ComputerName.Contains("PW")))
+    $Online = Test-Connection $Computername -Count 1 -Quiet
+
+    If($Online)
+    {
+        $Online
+        $lbl_ADComputerOnline.BackColor = "Lime"
+        $lbl_ADComputerOnline.Text = "ON"
+    }
+    Else
+    {
+        $Online
+        $lbl_ADComputerOnline.BackColor = "Red"
+        $lbl_ADComputerOnline.Text = "OFF"
+    }
+
+}#https://superuser.com/questions/123242/can-i-find-the-session-id-for-a-user-logged-on-to-another-machine
+
+Function Get-UserNameSessionIDMap
 {
-    $ComputerName = "PW" + $ComputerName
-}
+    [CmdletBinding()]
+    Param
+    (
+        $ADUserName
+    )
     
-If(-not ($PrinterName.Contains("PRINT_")))
+    $ADListComputer = @()
+    $ADListComputer = Get-Content C:\Users\loc.BOOY3105.TWEEDEKAMER\Documents\Powershell\ServiceDeskToolKit2.0\HelperFiles\Temp_Files\AllComputers.txt
+
+    foreach($ADComputer in $ADListComputer)
+    {        
+        
+        If(-Not $ADComputer.StartsWith("PW"))
+        {
+           Continue
+        }
+
+        $quserRes = quser /server:$ADComputer | select -skip 1
+            
+        if (!$quserRes) 
+        { 
+            Continue
+        }
+        
+        $quCSV = @()
+        
+        $quCSVhead = "SessionID","UserName","LogonTime"
+        
+        foreach ($qur in $quserRes) 
+        {
+            $qurMap = $qur.Trim().Split(" ") | ? {$_}
+            
+            
+            If ($qurMap[0] -eq $ADUserName)
+            {
+                if ($qur -notmatch " Disc   ") 
+                { 
+                    $quCSV += $qurMap[2] + "|" + $qurMap[0] + "|" + $qurMap[5] + " " + $qurMap[6] 
+                }
+                else 
+                { 
+                    $quCSV += $qurMap[1] + "|" + $qurMap[0] + "|" + $qurMap[4] + " " + $qurMap[5] 
+                } #disconnected sessions have no SESSIONNAME, others have ica-tcp#x
+            }
+        }
+        
+        $ADComputer
+        $quCSV | ConvertFrom-CSV -Delimiter "|" -Header $quCSVhead
+    }  
+} 
+Get-UserNameSessionIDMap -ADUserName BOOY3105 -ErrorAction SilentlyContinue
+#end function Get-UserNameSessionIDMap
+
+Function Unlock-Account
 {
-    $PrinterName = "PRINT_" + $PrinterName
+    [CmdletBinding()]
+    
+    Param
+    (
+        $Username
+    )
+
+        Unlock-ADAccount -Identity $Username
+}
+
+Function Reset-Password
+{
+    $frm_ResetPassword = New-Object System.Windows.Forms.Form
+    $frm_ResetPassword.Text = "Reset Password"
+    $frm_ResetPassword.Height = 100
+    $frm_ResetPassword.Width = 400
+
+    $lbl_ResetPassword = New-Object System.Windows.Forms.Label
+
+    $txt_ResetPassword = New-Object System.Windows.Forms.TextBox
+
+
+}
+
+Function DisableEnable-Account
+{
+    [CmdletBinding()]
+
+    Param
+    (
+        $Username,
+        $Enable
+    )
+
+    If($Enable -eq 1)
+    {
+        Enable-ADAccount -Identity $Username
+    }
+    Else
+    {
+        Disable-ADAccount -Identity $Username
+    }
+
 }
 
 Start-ServiceDeskToolkit 
