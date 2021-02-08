@@ -1,4 +1,6 @@
-﻿Function Invoke-Tracert
+﻿# https://stackoverflow.com/questions/32434882/is-there-a-powershell-equivalent-tracert-that-works-in-version-2
+
+Function Invoke-Tracert
 {
     [CmdLetBinding()]
     param(
